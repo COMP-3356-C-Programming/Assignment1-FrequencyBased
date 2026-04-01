@@ -1,39 +1,361 @@
-name: Autograding Tests
+name: GitHub Classroom Autograding
+
 on:
   - push
   - workflow_dispatch
-  - repository_dispatch
-permissions:
-  checks: write
-  actions: read
-  contents: read
+
 jobs:
   run-autograding-tests:
     runs-on: ubuntu-latest
-    if: github.actor != 'github-classroom[bot]'
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      # This is where you place your autograding tests
-      # For more information on this runner, see the documentation at: https://github.com/classroom-resources/autograding-io-grader
-      #
-      # For example, you could run a test suite like this:
-      # - name: Run tests
-      #   uses: classroom-resources/autograding-io-grader@v1
-      #     with:
-      #       test-name: Addition Test
-      #       id: addition-test
-      #       command: "./bin/add.sh"
-      #       input: 1 2
-      #       expected-output: 3
-      #       comparison-method: exact
-      #       timeout: 10
-    - name: Autograding Reporter
-      uses: classroom-resources/autograding-grading-reporter@v1
-      # For more information on this runner, see the documentation at https://github.com/classroom-resources/autograding-grading-reporter
-      # To output the results of the tests, you can use the
-      # autograding-grading-reporter action like this:
-      # env:
-      # ADDITION-TEST_RESULTS: "${{ steps.addition - test.outputs.result }}"
-      #     with:
-      #         runners: addition-test
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc
+
+      - name: Build executable
+        run: |
+          echo "==> Building project"
+
+          if [ -f Makefile ] || [ -f makefile ]; then
+            make
+          elif [ -f entropy.c ]; then
+            gcc -Wall -Wextra -Werror -std=c11 -o entropy entropy.c -lm
+          else
+            echo "Could not find a Makefile or entropy.c"
+            exit 1
+          fi
+
+          if [ ! -x ./entropy ]; then
+            echo "Executable ./entropy was not created."
+            exit 1
+          fi
+
+      # ---------------------------
+      # Correctness Tests
+      # ---------------------------
+
+      - name: Correctness - hello world
+        id: correctness-1
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - hello world"
+          setup-command: ""
+          command: |
+            output=$(printf "hello world" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=2.845
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Correctness - password
+        id: correctness-2
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - password"
+          setup-command: ""
+          command: |
+            output=$(printf "password" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=2.750
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Correctness - numeric input
+        id: correctness-3
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - numeric input"
+          setup-command: ""
+          command: |
+            output=$(printf "12345" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=2.322
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Correctness - mixed symbols
+        id: correctness-4
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - mixed symbols"
+          setup-command: ""
+          command: |
+            output=$(printf "P@ssw0rd!" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=2.948
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Correctness - repeated characters
+        id: correctness-5
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - repeated characters"
+          setup-command: ""
+          command: |
+            output=$(printf "aabbcc" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=1.585
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Correctness - symbols only
+        id: correctness-6
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - symbols only"
+          setup-command: ""
+          command: |
+            output=$(printf "!!!@@@" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=1.000
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Correctness - identical characters
+        id: correctness-7
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - identical characters"
+          setup-command: ""
+          command: |
+            output=$(printf "aaaaaa" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=0.000
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Correctness - unique characters
+        id: correctness-8
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Correctness - unique characters"
+          setup-command: ""
+          command: |
+            output=$(printf "abcd" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=2.000
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      # ---------------------------
+      # Robustness Tests
+      # ---------------------------
+
+      - name: Robustness - case sensitivity
+        id: robustness-1
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Robustness - case sensitivity"
+          setup-command: ""
+          command: |
+            output=$(printf "AaAa" | ./entropy 2>&1)
+            status=$?
+            [ $status -eq 0 ] || exit 1
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=1.000
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Robustness - spaces included
+        id: robustness-2
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Robustness - spaces included"
+          setup-command: ""
+          command: |
+            output=$(printf "aa aa" | ./entropy 2>&1)
+            status=$?
+            [ $status -eq 0 ] || exit 1
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=1.522
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Robustness - punctuation preserved
+        id: robustness-3
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Robustness - punctuation preserved"
+          setup-command: ""
+          command: |
+            output=$(printf "a!a!" | ./entropy 2>&1)
+            status=$?
+            [ $status -eq 0 ] || exit 1
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=1.000
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Robustness - uneven distribution
+        id: robustness-4
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Robustness - uneven distribution"
+          setup-command: ""
+          command: |
+            output=$(printf "aaaabbc" | ./entropy 2>&1)
+            status=$?
+            [ $status -eq 0 ] || exit 1
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ] || exit 1
+            expected=1.379
+            diff=$(echo "$value - $expected" | bc -l)
+            abs_diff=$(echo "$diff" | awk '{if ($1 < 0) print -$1; else print $1}')
+            (( $(echo "$abs_diff <= 0.01" | bc -l) ))
+          timeout: 5
+          max-score: 5
+
+      - name: Robustness - empty input does not crash
+        id: robustness-5
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Robustness - empty input does not crash"
+          setup-command: ""
+          command: |
+            printf "" | ./entropy > /tmp/entropy_empty_out.txt 2>&1
+            status=$?
+            [ $status -eq 0 ]
+          timeout: 5
+          max-score: 5
+
+      - name: Robustness - long repeated input
+        id: robustness-6
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Robustness - long repeated input"
+          setup-command: ""
+          command: |
+            long_input=$(printf 'a%.0s' {1..500})
+            printf "%s" "$long_input" | ./entropy > /tmp/entropy_long_out.txt 2>&1
+            status=$?
+            [ $status -eq 0 ]
+          timeout: 5
+          max-score: 5
+
+      # ---------------------------
+      # Output Formatting Tests
+      # ---------------------------
+
+      - name: Format - clean output line
+        id: format-1
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Format - clean output line"
+          setup-command: ""
+          command: |
+            output=$(printf "test" | ./entropy 2>&1)
+            echo "$output" | grep -qP '^Entropy:\s*[0-9]+(\.[0-9]+)?$'
+          timeout: 5
+          max-score: 5
+
+      - name: Format - no interactive prompt text
+        id: format-2
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Format - no interactive prompt text"
+          setup-command: ""
+          command: |
+            output=$(printf "test" | ./entropy 2>&1)
+            ! echo "$output" | grep -qiE 'enter|input|password|string|please type'
+          timeout: 5
+          max-score: 5
+
+      - name: Format - extractable entropy value
+        id: format-3
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Format - extractable entropy value"
+          setup-command: ""
+          command: |
+            output=$(printf "entropy" | ./entropy 2>&1)
+            value=$(echo "$output" | grep -oP 'Entropy:\s*\K[0-9]+(\.[0-9]+)?' || true)
+            [ -n "$value" ]
+          timeout: 5
+          max-score: 5
+
+      - name: Format - single line output preferred
+        id: format-4
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: "Format - single line output preferred"
+          setup-command: ""
+          command: |
+            output=$(printf "entropy" | ./entropy 2>&1)
+            lines=$(echo "$output" | sed '/^\s*$/d' | wc -l)
+            [ "$lines" -eq 1 ]
+          timeout: 5
+          max-score: 5
+
+      - name: Autograding Reporter
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          CORRECTNESS-1_RESULTS: "${{steps.correctness-1.outputs.result}}"
+          CORRECTNESS-2_RESULTS: "${{steps.correctness-2.outputs.result}}"
+          CORRECTNESS-3_RESULTS: "${{steps.correctness-3.outputs.result}}"
+          CORRECTNESS-4_RESULTS: "${{steps.correctness-4.outputs.result}}"
+          CORRECTNESS-5_RESULTS: "${{steps.correctness-5.outputs.result}}"
+          CORRECTNESS-6_RESULTS: "${{steps.correctness-6.outputs.result}}"
+          CORRECTNESS-7_RESULTS: "${{steps.correctness-7.outputs.result}}"
+          CORRECTNESS-8_RESULTS: "${{steps.correctness-8.outputs.result}}"
+          ROBUSTNESS-1_RESULTS: "${{steps.robustness-1.outputs.result}}"
+          ROBUSTNESS-2_RESULTS: "${{steps.robustness-2.outputs.result}}"
+          ROBUSTNESS-3_RESULTS: "${{steps.robustness-3.outputs.result}}"
+          ROBUSTNESS-4_RESULTS: "${{steps.robustness-4.outputs.result}}"
+          ROBUSTNESS-5_RESULTS: "${{steps.robustness-5.outputs.result}}"
+          ROBUSTNESS-6_RESULTS: "${{steps.robustness-6.outputs.result}}"
+          FORMAT-1_RESULTS: "${{steps.format-1.outputs.result}}"
+          FORMAT-2_RESULTS: "${{steps.format-2.outputs.result}}"
+          FORMAT-3_RESULTS: "${{steps.format-3.outputs.result}}"
+          FORMAT-4_RESULTS: "${{steps.format-4.outputs.result}}"
+        with:
+          runners: correctness-1,correctness-2,correctness-3,correctness-4,correctness-5,correctness-6,correctness-7,correctness-8,robustness-1,robustness-2,robustness-3,robustness-4,robustness-5,robustness-6,format-1,format-2,format-3,format-4
