@@ -1,4 +1,4 @@
-name: Homework 1 Autograding
+name: GitHub Classroom Autograding
 
 on:
   - push
