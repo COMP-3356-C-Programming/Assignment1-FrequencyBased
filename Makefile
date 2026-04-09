@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99
-TARGET = entropy.c
+TARGET = entropy
 SRC = entropy.c
 
 all: $(TARGET)
