@@ -1,7 +1,7 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -std=c99
-TARGET = password_strength
-SRC = password_strength.c
+TARGET = entropy.c
+SRC = entropy.c
 
 all: $(TARGET)
 
