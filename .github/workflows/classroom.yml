@@ -25,6 +25,8 @@ jobs:
             make
           elif [ -f entropy.c ]; then
             gcc -Wall -Wextra -Werror -std=c11 -o entropy entropy.c -lm
+          elif [ -f main.c ]; then
+            gcc -Wall -Wextra -Werror -std=c11 -o entropy main.c -lm
           else
             echo "Could not find a Makefile or entropy.c"
             exit 1
