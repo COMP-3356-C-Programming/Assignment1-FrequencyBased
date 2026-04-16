@@ -1,0 +1,5 @@
+compile 
+gcc entropy.c -o entropy -lm
+
+run
+./entropy
